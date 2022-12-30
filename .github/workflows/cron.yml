@@ -1,0 +1,13 @@
+name: 15-min-cron
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+jobs:
+  cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Fauxhigh Cron API route
+        run: |
+          curl --request POST \
+          --url 'https://fauxhigh.vercel.app/api/cron' \
+          --header 'Authorization: Bearer ${{ secrets.CRON_SECRET_KEY }}'
