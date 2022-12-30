@@ -1,30 +1,55 @@
-import type { ActionArgs } from '@remix-run/node'
+import type { LoaderArgs } from '@remix-run/node'
 import { json } from '@remix-run/node'
+import { useLoaderData } from '@remix-run/react'
 import { TwitterApi } from 'twitter-api-v2'
+import { commitSession, getSession } from '~/services/session.server'
 
-export const action = async ({ request }: ActionArgs) => {
-  // Instantiate with desired auth type (here's Bearer v2 auth)
-  const twitterClient = new TwitterApi({
-    appKey: process.env.TWITTER_APP_KEY ?? '',
-    appSecret: process.env.TWITTER_APP_SECRET ?? '',
-    accessToken: process.env.TWITTER_ACCESS_TOKEN ?? '',
-    accessSecret: process.env.TWITTER_ACCESS_SECRET ?? '',
-  })
+export const loader = async ({ request }: LoaderArgs) => {
+  const session = await getSession(request.headers.get('cookie'))
+  const accessToken = session.get('accessToken')
 
-  // Tell typescript it's a readonly app
-  const client = twitterClient.readOnly
+  const client = new TwitterApi(
+    accessToken ?? {
+      clientId: process.env.TWITTER_CLIENT_ID ?? '',
+      clientSecret: process.env.TWITTER_CLIENT_SECRET ?? '',
+    },
+  )
 
-  const tweets = await client.v2.userTimeline('twitterdev', {
-    max_results: 10,
-    expansions: ['author_id'],
-  })
+  if (!accessToken) {
+    const { url, codeVerifier, state } = client.generateOAuth2AuthLink(
+      process.env.TWITTER_CALLBACK_URL ?? '',
+      { scope: ['tweet.read', 'users.read', 'like.write', 'offline.access'] },
+    )
 
-  console.log(tweets)
+    session.set('codeVerifier', codeVerifier)
+    session.set('state', state)
+
+    return json(
+      { url },
+      { status: 200, headers: { 'Set-Cookie': await commitSession(session) } },
+    )
+  }
+
+  try {
+    const { data: userData } = await client.v2.me()
+    const tweets = await client.v2.search('#buildinpublic')
+
+    for (const tweet of tweets) {
+      await client.v2.like(userData.id, tweet.id)
+    }
+  } catch (e) {
+    console.log(e)
+  }
 
   // Possible status returns: 200 | 404.
-  return json({}, { status: 200 })
+  return json(
+    { url: null },
+    { status: 200, headers: { 'Set-Cookie': await commitSession(session) } },
+  )
 }
 
 export default () => {
-  return null
+  const { url } = useLoaderData<typeof loader>()
+
+  return <>{url && <a href={url}>Sign in with Twitter</a>}</>
 }
