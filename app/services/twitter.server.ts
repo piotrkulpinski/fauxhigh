@@ -5,15 +5,10 @@ export const likeRecentTweets = async (
   query: string = '#buildinpublic',
 ) => {
   const client = new TwitterApi(token)
+  const { data: userData } = await client.v2.me()
+  const tweets = await client.v2.search(query)
 
-  try {
-    const { data: userData } = await client.v2.me()
-    const tweets = await client.v2.search(query)
-
-    for (const tweet of tweets) {
-      await client.v2.like(userData.id, tweet.id)
-    }
-  } catch (e) {
-    console.log(e)
+  for (const tweet of tweets) {
+    await client.v2.like(userData.id, tweet.id)
   }
 }

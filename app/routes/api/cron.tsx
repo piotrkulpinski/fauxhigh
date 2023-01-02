@@ -23,7 +23,11 @@ export const action = async ({ request }: ActionArgs) => {
     const token = session.get('accessToken') ?? process.env.TWITTER_ACCESS_TOKEN
 
     if (token) {
-      await likeRecentTweets(token, '#buildinpublic')
+      try {
+        await likeRecentTweets(token, '#buildinpublic')
+      } catch (error) {
+        return json({ status: 500, message: (error as Error).message })
+      }
     }
 
     return json({ status: 200, success: true })
